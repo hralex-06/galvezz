@@ -1,97 +1,81 @@
 import streamlit as st
 import google.generativeai as genai
-import time
 
-# --- CONFIGURACIÓ DE LA PÀGINA ---
-st.set_page_config(page_title="GalvezzAI Pro", page_icon="🤖", layout="centered")
+# --- CONFIGURACIÓ DE PÀGINA I ESTIL ---
+st.set_page_config(page_title="GalvezzAI", page_icon="🤖")
 
-# Estil visual
 st.markdown("""
     <style>
-    .stApp { background-color: #0e1117; color: #e6edf3; }
-    .stChatMessage { border-radius: 15px; border: 1px solid #30363d; background-color: #161b22; }
-    h1 { color: #58a6ff; text-align: center; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-    .stCaption { text-align: center; }
+    /* Interfície Minimalista */
+    .stApp { background-color: #0b0e11; }
+    .stChatMessage { background-color: #1a1d21; border-radius: 10px; border: none; margin-bottom: 10px; }
+    .stChatInput { border-radius: 20px; }
+    h1 { color: #ffffff; font-weight: 700; letter-spacing: -1px; }
+    .stCaption { color: #666; }
+    /* Amagar menús innecessaris */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
     </style>
     """, unsafe_allow_html=True)
 
-st.title("🤖 GalvezzAI")
+st.title("GalvezzAI")
+st.caption("Connexió directa | Mode Fluït Activat")
 
-# 1. CLAU API
+# 1. API KEY
 if "GOOGLE_API_KEY" not in st.secrets:
-    st.error("Configura la clau a Secrets!")
+    st.error("Falta la clau API!")
     st.stop()
 
 genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
 
-# 2. PERSONALITAT
-PERSONALITAT = (
-    "Ets en GalvezzAI, el millor amic de l'Alex. Sigues proper, intel·ligent i amb humor. "
+# 2. CONFIGURACIÓ DEL MOTOR (Sense sobrecarregar)
+# Utilitzem el 1.5-Flash que és el més estable per a respostes ràpides
+if "model" not in st.session_state:
+    st.session_state.model = genai.GenerativeModel('gemini-1.5-flash')
+
+# Personalitat curta (com més curta, menys error 429)
+PERSONALITAT = "Ets en GalvezzAI, el millor amic de l'Alex. Sigues proper, intel·ligent i amb humor. "
     "Vacil·la'm quan digui ximpleries, però ajuda'm de veritat en els estudis i decisions. "
     "Ets un company real. Si et demano una imatge, descriu-la detalladament perquè soc capaç de generar-la."
-)
 
-# 3. BUSCADOR DE MODELS (Anti-404)
-if "model_name" not in st.session_state:
-    try:
-        # Llistem tots els models que el teu compte pot usar
-        available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-        # Busquem el 1.5-flash, si no el trobem, el 1.0-pro, i si no, el primer que hi hagi
-        if any('gemini-1.5-flash' in m for m in available_models):
-            st.session_state.model_name = [m for m in available_models if 'gemini-1.5-flash' in m][0]
-        elif any('gemini-pro' in m for m in available_models):
-            st.session_state.model_name = [m for m in available_models if 'gemini-pro' in m][0]
-        else:
-            st.session_state.model_name = available_models[0]
-    except:
-        st.session_state.model_name = 'models/gemini-pro' # Fallback clàssic
-
-model = genai.GenerativeModel(st.session_state.model_name, system_instruction=PERSONALITAT)
-
-st.caption(f"🚀 Conectat via: {st.session_state.model_name} | Estat")
-
-# 4. HISTORIAL
+# 3. HISTORIAL INTEL·LIGENT
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
+# Mostrem la conversa
 for msg in st.session_state.messages:
-    with st.chat_message(msg["role"]):
-        st.write(msg["content"])
+    st.chat_message(msg["role"]).write(msg["content"])
 
-# 5. XAT
-if prompt := st.chat_input("Digues quelcom..."):
+# 4. LÒGICA DE XAT (OPTIMITZADA)
+if prompt := st.chat_input("Escriu un missatge..."):
+    # Afegim missatge usuari
     st.session_state.messages.append({"role": "user", "content": prompt})
     st.chat_message("user").write(prompt)
 
     with st.chat_message("assistant"):
         try:
-            # Pausa de seguretat (Quota 429)
-            time.sleep(1)
-            
-            # Context curt per no saturar
+            # OPTIMITZACIÓ CLAU: 
+            # Només enviem els últims 2 missatges per mantenir el context sense saturar la quota.
+            context_recent = st.session_state.messages[-3:-1]
             history = []
-            for m in st.session_state.messages[-5:-1]:
+            for m in context_recent:
                 role = "model" if m["role"] == "assistant" else "user"
                 history.append({"role": role, "parts": [m["content"]]})
             
-            chat = model.start_chat(history=history)
+            # Iniciem xat amb historial mínim
+            chat = st.session_state.model.start_chat(history=history)
             
-            with st.spinner("Escoltant..."):
-                # Enviem el prompt. Si demanes imatge, Gemini 1.5 sovint la genera sola si pot
-                response = chat.send_message(prompt)
+            # Injectem la personalitat de forma lleugera només si és el primer missatge o cada X temps
+            full_prompt = f"{PERSONALITAT}\n\nL'Alex diu: {prompt}"
             
+            response = chat.send_message(full_prompt, stream=False)
+            
+            # Mostrar i guardar
             st.write(response.text)
-            
-            # Intentar mostrar imatges si el model les ha generat (format part.inline_data)
-            if hasattr(response, 'candidates') and response.candidates:
-                for part in response.candidates[0].content.parts:
-                    if hasattr(part, 'inline_data'):
-                        st.image(part.inline_data.data)
-
             st.session_state.messages.append({"role": "assistant", "content": response.text})
 
         except Exception as e:
             if "429" in str(e):
-                st.warning("M'has ratllat! Espera 20 segons.")
+                st.error("Quota temporal esgotada. Espera 10 segons.")
             else:
-                st.error(f"Error: {e}. Prova de reiniciar l'app.")
+                st.error(f"Error de connexió. Torna-ho a provar.")
