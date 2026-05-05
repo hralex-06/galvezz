@@ -1,78 +1,105 @@
 import streamlit as st
 import google.generativeai as genai
+import time
 
-# CONFIGURACIÓ DE LA PÀGINA
-st.set_page_config(page_title="GalvezzAI", page_icon="🤖")
+# --- CONFIGURACIÓ DE LA PÀGINA I ESTIL ---
+st.set_page_config(page_title="GalvezzAI Pro", page_icon="🤖", layout="centered")
+
+# CSS per tunejar la interfície
+st.markdown("""
+    <style>
+    .main { background-color: #0e1117; }
+    .stChatMessage { border-radius: 15px; margin-bottom: 10px; border: 1px solid #30363d; }
+    .stTitle { color: #00ffcc; font-family: 'Courier New', Courier, monospace; text-shadow: 2px 2px #000; }
+    div[data-testid="stStatusWidget"] { visibility: hidden; }
+    .stActionButton { display: none; }
+    </style>
+    """, unsafe_allow_html=True)
+
 st.title("🤖 GalvezzAI")
+st.markdown("---")
 
 # 1. CLAU DE SEGURETAT
 if "GOOGLE_API_KEY" not in st.secrets:
-    st.error("Falta la clau API! Posa-la a 'Manage app > Settings > Secrets'.")
+    st.error("Falta la clau API a Secrets!")
     st.stop()
 
 genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
 
-# 2. DEFINICIÓ DE LA PERSONALITAT VACIL·LA
+# 2. PERSONALITAT MILLORADA (El teu millor amic vacil·la)
 PERSONALITAT = (
-    "Ets en GalvezzAI, una IA molt intel·ligent però també molt vacil·la, sarcàstica i divertida. "
-    "Parles en català col·loquial. No ets gens seriós. T'agrada fer bromes i riure't de l'usuari amb bon rotllo. "
-    "Sempre respons amb ironia. Si et demanen una imatge, intenta descriure-la amb molt de sarcasme "
-    "o digues que avui no t'han pagat prou per dibuixar."
+    "Actua com el millor amic de l'Alex. Sigues proper, intel·ligent i amb humor. "
+    "Vacil·la'm quan digui ximpleries, però sense mala llet. "
+    "Ajuda'm a estudiar i preparar exàmens pensant en estratègies de professors. "
+    "Si et demano una imatge, genera-la amb la teva eina interna. "
+    "Ets un company real, amb criteri i suport."
 )
 
-# 3. DETECTAR EL MILLOR MODEL DISPONIBLE
+# 3. DETECTAR MODEL
 if "model_actiu" not in st.session_state:
-    try:
-        # Busquem models que suportin generació de contingut
-        models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-        # Prioritat: 1.5-flash (el més ràpid i modern)
-        flash_models = [m for m in models if '1.5-flash' in m]
-        st.session_state.model_actiu = flash_models[0] if flash_models else models[0]
-    except Exception:
-        st.session_state.model_actiu = 'models/gemini-1.5-flash'
+    st.session_state.model_actiu = 'gemini-1.5-flash'
 
-# Inicialitzem el model amb les instruccions de sistema
+# Inicialitzem el model
 model = genai.GenerativeModel(
     model_name=st.session_state.model_actiu,
     system_instruction=PERSONALITAT
 )
 
-st.caption(f"Motor: {st.session_state.model_actiu} | Estil: Vacil·la actiu ✅")
-
 # 4. GESTIÓ DE L'HISTORIAL
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# Mostrar missatges previs
 for msg in st.session_state.messages:
-    st.chat_message(msg["role"]).write(msg["content"])
+    with st.chat_message(msg["role"]):
+        if "image" in msg:
+            st.image(msg["image"])
+        st.write(msg["content"])
 
-# 5. LÒGICA DEL XAT
-if prompt := st.chat_input("Escriu aquí per ser vacil·lat..."):
-    # Guardem i mostrem el missatge de l'usuari
+# 5. XAT I IMATGES
+if prompt := st.chat_input("Digues quelcom..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
-    st.chat_message("user").write(prompt)
+    with st.chat_message("user"):
+        st.write(prompt)
 
     with st.chat_message("assistant"):
         try:
-            # Preparem l'historial (només els últims 6 missatges per no saturar la quota 429)
+            # Petita pausa per no cremar la quota de Google (Anti-429)
+            time.sleep(1) 
+            
+            # Historial ultra-curt per estalviar quota
             history = []
-            for m in st.session_state.messages[-7:-1]:
+            for m in st.session_state.messages[-4:-1]: # Només últims 3 missatges
                 role = "model" if m["role"] == "assistant" else "user"
                 history.append({"role": role, "parts": [m["content"]]})
             
-            # Iniciem xat i enviem missatge
             chat = model.start_chat(history=history)
-            response = chat.send_message(prompt)
             
-            resposta_text = response.text
-            st.write(resposta_text)
+            # Generar resposta
+            with st.spinner("Pensant una resposta..."):
+                response = chat.send_message(prompt)
             
-            # Guardar la resposta
-            st.session_state.messages.append({"role": "assistant", "content": resposta_text})
+            # Mostrar text
+            st.write(response.text)
             
+            # LOGICA D'IMATGES: Si la resposta conté una imatge
+            image_found = None
+            if hasattr(response, 'candidates'):
+                for candidate in response.candidates:
+                    for part in candidate.content.parts:
+                        if hasattr(part, 'inline_data'):
+                            image_found = part.inline_data.data
+                            st.image(image_found, caption="Aquí tens el teu dibuix.")
+
+            # Guardar a l'historial
+            new_msg = {"role": "assistant", "content": response.text}
+            if image_found:
+                new_msg["image"] = image_found
+            st.session_state.messages.append(new_msg)
+
         except Exception as e:
             if "429" in str(e):
-                st.error("Ep! M'has atabalat. Espera 30 segons i torna a provar-ho, que la versió gratis de Google no dóna per més!")
+                st.warning("⚠️ M'has saturat! torna a provar en 15 segons.")
             else:
-                st.error(f"S'ha trencat alguna cosa: {e}")
+                st.error(f"Error raro: {e}")
+
+st.sidebar.caption(f"🚀 Versió Pro | {st.session_state.model_actiu}")
