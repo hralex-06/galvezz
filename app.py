@@ -34,9 +34,7 @@ if "model" not in st.session_state:
     st.session_state.model = genai.GenerativeModel('gemini-1.5-flash')
 
 # Personalitat curta (com més curta, menys error 429)
-PERSONALITAT = "Ets en GalvezzAI, el millor amic de l'Alex. Sigues proper, intel·ligent i amb humor. "
-    "Vacil·la'm quan digui ximpleries, però ajuda'm de veritat en els estudis i decisions. "
-    "Ets un company real. Si et demano una imatge, descriu-la detalladament perquè soc capaç de generar-la."
+PERSONALITAT = "Ets en GalvezzAI, millor amic de tothom. Sigues proper, vacil·la amb humor i ajuda en estudis. Respon sempre en l'idioma demanat i sigues directe."
 
 # 3. HISTORIAL INTEL·LIGENT
 if "messages" not in st.session_state:
