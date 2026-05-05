@@ -1,25 +1,29 @@
 import streamlit as st
 import google.generativeai as genai
 
-# --- CONFIGURACIÓ DE PÀGINA I ESTIL ---
-st.set_page_config(page_title="GalvezzAI", page_icon="🤖")
+# --- CONFIGURACIÓ DE PÀGINA ---
+st.set_page_config(page_title="GalvezzAI", page_icon="🤖", layout="wide")
 
+# CSS PER FORÇAR LLEGIBILITAT I COLORS
 st.markdown("""
     <style>
-    /* Interfície Minimalista */
-    .stApp { background-color: #0b0e11; }
-    .stChatMessage { background-color: #1a1d21; border-radius: 10px; border: none; margin-bottom: 10px; }
-    .stChatInput { border-radius: 20px; }
-    h1 { color: #ffffff; font-weight: 700; letter-spacing: -1px; }
-    .stCaption { color: #666; }
-    /* Amagar menús innecessaris */
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
+    /* Fons i lletra general */
+    .stApp { background-color: #0e1117; color: #ffffff !important; }
+    
+    /* Forçar text blanc a tot arreu */
+    p, span, div, label { color: #ffffff !important; }
+    
+    /* Estil dels missatges */
+    .stChatMessage { background-color: #1d222b !important; border-radius: 10px; padding: 15px; margin-bottom: 10px; }
+    
+    /* Títol i Sidebar */
+    h1 { color: #58a6ff !important; font-weight: 800; }
+    .css-1d391kg { background-color: #161b22 !important; } /* Fons sidebar */
+    
+    /* Input del xat */
+    .stChatInput textarea { color: #ffffff !important; background-color: #21262d !important; }
     </style>
     """, unsafe_allow_html=True)
-
-st.title("GalvezzAI")
-st.caption("Connexió directa | Mode Fluït Activat")
 
 # 1. API KEY
 if "GOOGLE_API_KEY" not in st.secrets:
@@ -28,52 +32,53 @@ if "GOOGLE_API_KEY" not in st.secrets:
 
 genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
 
-# 2. CONFIGURACIÓ DEL MOTOR (Sense sobrecarregar)
-# Utilitzem el 1.5-Flash que és el més estable per a respostes ràpides
+# 2. CONFIGURACIÓ MODEL
 if "model" not in st.session_state:
     st.session_state.model = genai.GenerativeModel('gemini-1.5-flash')
 
-# Personalitat curta (com més curta, menys error 429)
-PERSONALITAT = "Ets en GalvezzAI, millor amic de tothom. Sigues proper, vacil·la amb humor i ajuda en estudis. Respon sempre en l'idioma demanat i sigues directe."
+PERSONALITAT = "Ets en GalvezzAI, millor amic de l'Alex. Vacil·la'l amb humor, sigues directe i parla sempre en català."
 
-# 3. HISTORIAL INTEL·LIGENT
+# 3. GESTIÓ HISTORIAL I SIDEBAR
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# Mostrem la conversa
+# BARRA LATERAL
+with st.sidebar:
+    st.title("📚 Historial")
+    if st.button("🗑️ Esborrar tot"):
+        st.session_state.messages = []
+        st.rerun()
+    
+    st.markdown("---")
+    # Mostrar un resum de les preguntes de l'usuari
+    user_prompts = [m["content"] for m in st.session_state.messages if m["role"] == "user"]
+    for i, p in enumerate(reversed(user_prompts)):
+        st.caption(f"{len(user_prompts)-i}. {p[:30]}...")
+
+# 4. AREA CENTRAL
+st.title("GalvezzAI")
+
+# Mostrar missatges
 for msg in st.session_state.messages:
-    st.chat_message(msg["role"]).write(msg["content"])
+    with st.chat_message(msg["role"]):
+        st.markdown(msg["content"])
 
-# 4. LÒGICA DE XAT (OPTIMITZADA)
-if prompt := st.chat_input("Escriu un missatge..."):
-    # Afegim missatge usuari
+# 5. LÒGICA DE XAT
+if prompt := st.chat_input("Digues quelcom, Alex..."):
+    # Usuari
     st.session_state.messages.append({"role": "user", "content": prompt})
-    st.chat_message("user").write(prompt)
+    with st.chat_message("user"):
+        st.markdown(prompt)
 
+    # Assistent
     with st.chat_message("assistant"):
         try:
-            # OPTIMITZACIÓ CLAU: 
-            # Només enviem els últims 2 missatges per mantenir el context sense saturar la quota.
-            context_recent = st.session_state.messages[-3:-1]
-            history = []
-            for m in context_recent:
-                role = "model" if m["role"] == "assistant" else "user"
-                history.append({"role": role, "parts": [m["content"]]})
+            # Enviem només l'últim context per evitar el maleït 429
+            response = st.session_state.model.generate_content(f"{PERSONALITAT}\nAlex diu: {prompt}")
             
-            # Iniciem xat amb historial mínim
-            chat = st.session_state.model.start_chat(history=history)
+            resposta_neta = response.text
+            st.markdown(resposta_neta)
+            st.session_state.messages.append({"role": "assistant", "content": resposta_neta})
             
-            # Injectem la personalitat de forma lleugera només si és el primer missatge o cada X temps
-            full_prompt = f"{PERSONALITAT}\n\nL'Alex diu: {prompt}"
-            
-            response = chat.send_message(full_prompt, stream=False)
-            
-            # Mostrar i guardar
-            st.write(response.text)
-            st.session_state.messages.append({"role": "assistant", "content": response.text})
-
         except Exception as e:
-            if "429" in str(e):
-                st.error("Quota temporal esgotada. Espera 10 segons.")
-            else:
-                st.error(f"Error de connexió. Torna-ho a provar.")
+            st.error("Google està saturat. Espera 10 segons i reintenta.")
