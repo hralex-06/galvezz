@@ -1,117 +1,130 @@
 import streamlit as st
 import google.generativeai as genai
 import uuid
+import time
 
 # --- CONFIGURACIÓ DE PÀGINA ---
 st.set_page_config(page_title="GalvezzAI", page_icon="🤖", layout="wide")
 
-# --- CSS PERSONALITZAT (MODERN & LLEGIBLE) ---
+# --- CSS MODERN (FORÇANT TEXT BLANC I COLORS VIUS) ---
 st.markdown("""
     <style>
-    .stApp { background: linear-gradient(135deg, #0f0c29, #302b63, #24243e); color: white !important; }
+    .stApp { background: linear-gradient(145deg, #0f0c29, #1a1a2e); color: white !important; }
     
     /* Barra lateral */
-    section[data-testid="stSidebar"] { background-color: rgba(20, 20, 30, 0.8) !important; border-right: 1px solid #444; }
+    section[data-testid="stSidebar"] { background-color: #111 !important; border-right: 1px solid #333; }
     
-    /* Missatges */
-    .stChatMessage { border-radius: 20px; padding: 20px; margin-bottom: 15px; border: 1px solid rgba(255,255,255,0.1); }
-    div[data-testid="stChatMessageUser"] { background-color: rgba(88, 166, 255, 0.15) !important; border-left: 5px solid #58a6ff; }
-    div[data-testid="stChatMessageAssistant"] { background-color: rgba(255, 255, 255, 0.05) !important; border-left: 5px solid #00ffcc; }
+    /* Missatges més estilitzats */
+    .stChatMessage { border-radius: 15px; padding: 1.5rem; margin-bottom: 1rem; border: 1px solid rgba(255,255,255,0.05); }
+    div[data-testid="stChatMessageUser"] { background-color: rgba(0, 255, 204, 0.05) !important; border-right: 4px solid #00ffcc; }
+    div[data-testid="stChatMessageAssistant"] { background-color: rgba(88, 166, 255, 0.05) !important; border-left: 4px solid #58a6ff; }
     
-    /* Textos */
-    p, span, div, label { color: #ffffff !important; font-family: 'Inter', sans-serif; font-size: 1.05rem; }
-    h1 { background: -webkit-linear-gradient(#00ffcc, #58a6ff); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: 900; }
+    /* Forçar blanc a tot el text */
+    p, span, div, label, .stMarkdown { color: #ffffff !important; font-size: 1.1rem; line-height: 1.6; }
+    h1 { color: #00ffcc !important; font-weight: 800; text-shadow: 0px 0px 10px rgba(0,255,204,0.3); }
     
-    /* Botons sidebar */
-    .stButton>button { width: 100%; border-radius: 10px; background-color: transparent; border: 1px solid #444; color: white; }
-    .stButton>button:hover { border-color: #58a6ff; color: #58a6ff; }
+    /* Input xat */
+    .stChatInput textarea { color: white !important; background-color: #1a1d23 !important; border: 1px solid #444 !important; }
     </style>
     """, unsafe_allow_html=True)
 
 # --- 1. CONFIGURACIÓ GOOGLE AI ---
 if "GOOGLE_API_KEY" not in st.secrets:
-    st.error("Falta la clau API!")
+    st.error("Configura la teva API KEY als Secrets de Streamlit!")
     st.stop()
 
 genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
-model = genai.GenerativeModel('gemini-1.5-flash')
 
-# --- 2. GESTIÓ D'ESTAT (SESSIONS I HISTORIAL) ---
+# Configuración de generación para ahorrar cuota
+generation_config = {
+    "temperature": 0.8,
+    "top_p": 0.95,
+    "max_output_tokens": 800, # Respostes no massa llargues per no saturar
+}
+
+model = genai.GenerativeModel(
+    model_name='gemini-1.5-flash',
+    generation_config=generation_config
+)
+
+# --- 2. GESTIÓ DE SESSIONS ---
 if "chats" not in st.session_state:
-    # Estructura: {id: {"titol": str, "messages": list}}
     st.session_state.chats = {}
 
 if "current_chat_id" not in st.session_state:
     st.session_state.current_chat_id = None
 
-# --- 3. BARRA LATERAL (SIDEBAR) ---
+# --- 3. SIDEBAR AMB HISTORIAL ---
 with st.sidebar:
     st.title("🤖 GalvezzAI")
     
-    if st.button("➕ Nou Xat"):
+    if st.button("➕ Nova Conversa"):
         new_id = str(uuid.uuid4())
-        st.session_state.chats[new_id] = {"titol": "Conversa nova", "messages": []}
+        st.session_state.chats[new_id] = {"titol": "Xat nou", "messages": []}
         st.session_state.current_chat_id = new_id
         st.rerun()
     
     st.markdown("---")
-    st.subheader("Historial")
+    st.subheader("Converses")
     
-    # Llista de xats amb opció d'eliminar
     for chat_id in list(st.session_state.chats.keys()):
-        col_text, col_del = st.columns([0.8, 0.2])
-        
-        with col_text:
-            if st.button(st.session_state.chats[chat_id]["titol"][:20], key=f"sel_{chat_id}"):
+        cols = st.columns([0.8, 0.2])
+        with cols[0]:
+            if st.button(st.session_state.chats[chat_id]["titol"][:18], key=f"s_{chat_id}"):
                 st.session_state.current_chat_id = chat_id
                 st.rerun()
-        
-        with col_del:
-            if st.button("❌", key=f"del_{chat_id}"):
+        with cols[1]:
+            if st.button("🗑️", key=f"d_{chat_id}"):
                 del st.session_state.chats[chat_id]
                 if st.session_state.current_chat_id == chat_id:
                     st.session_state.current_chat_id = None
                 st.rerun()
 
-# --- 4. AREA DE CONVERSA ---
+# --- 4. LÒGICA PRINCIPAL ---
 PERSONALITAT = (
-    "Actua com el meu millor amic de tota la vida. Sigues proper, intel·ligent i amb humor. "
-    "Vacil·la’m quan digui ximpleries, però sense mala llet. Ajuda’m a prendre bones decisions, "
-    "atura’m si veus errors greus i ajuda’m a estudiar estratègicament. Respon sempre en català."
+    "Actua com el millor amic de l'Alex. Sigues proper, intel·ligent i amb humor. "
+    "Vacil·la’m quan digui ximpleries, però sense mala llet. Ajuda’m a prendre bones decisions "
+    "i a estudiar estratègicament. Respon sempre en català."
 )
 
 if st.session_state.current_chat_id:
     chat_data = st.session_state.chats[st.session_state.current_chat_id]
-    
-    # Títol dinàmic
     st.title(chat_data["titol"])
     
-    # Mostrar missatges del xat seleccionat
+    # Mostrar missatges
     for msg in chat_data["messages"]:
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])
 
-    # Input del xat
-    if prompt := st.chat_input("Digues quelcom, Alex..."):
-        # Guardar missatge usuari
+    # Entrada de text
+    if prompt := st.chat_input("Digues quelcom, crack..."):
         chat_data["messages"].append({"role": "user", "content": prompt})
         
-        # Actualitzar títol si és el primer missatge
+        # Títol automàtic
         if len(chat_data["messages"]) <= 1:
-            chat_data["titol"] = prompt[:25]
+            chat_data["titol"] = prompt[:20]
             
         st.chat_message("user").write(prompt)
 
         with st.chat_message("assistant"):
             try:
-                # Enviem només el missatge actual + personalitat (Estalvi de quota = Adéu 429)
-                response = model.generate_content(f"{PERSONALITAT}\nL'Alex diu: {prompt}")
+                # CONTEXT MINIMALISTA: Només enviem la personalitat + l'últim missatge
+                # Això redueix el consum de l'API dràsticament
+                full_query = f"{PERSONALITAT}\n\nAlex diu: {prompt}"
                 
-                resposta = response.text
-                st.markdown(resposta)
-                chat_data["messages"].append({"role": "assistant", "content": resposta})
+                # Petita pausa de seguretat per enganyar el limitador
+                time.sleep(0.5) 
+                
+                response = model.generate_content(full_query)
+                
+                text_resposta = response.text
+                st.markdown(text_resposta)
+                chat_data["messages"].append({"role": "assistant", "content": text_resposta})
                 
             except Exception as e:
-                st.error("el motor de Google està saturat. Espera 5 segons.")
+                if "429" in str(e):
+                    st.error("⚠️ Massa ràpid! Google s'ha atabalat. Espera 10 segons.")
+                else:
+                    st.error(f"S'ha desconnectat: {e}")
 else:
-    st.info("👋 Hola! Selecciona un xat de la barra lateral o crea'n un de nou per començar a parlar.")
+    st.info("👋 Ei! Crea un xat nou a la barra lateral per començar.")
