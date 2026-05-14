@@ -44,7 +44,7 @@ if "GOOGLE_API_KEY" not in st.secrets:
 genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
 
 # Cambiem a la versió Pro estable per saltar-nos el bloqueig del Flash
-MODEL_NAME = "gemini-pro"
+MODEL_NAME = "chat-bison-001"
 
 # =========================================================
 # AI PERSONALITY
