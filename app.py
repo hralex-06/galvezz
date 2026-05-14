@@ -261,20 +261,6 @@ if prompt := st.chat_input("Type something..."):
                 "parts": [full_response]
             })
 
-        except Exception as e:
-            st.error(f"""
-Error generating response.
-
-Possible reasons:
-- Invalid API key
-- Gemini rate limit reached
-- Google doing Google things
-- Your internet collapsed dramatically
-
-Error:
-{e}
-""")
-
 # =========================================================
 # FOOTER
 # =========================================================
