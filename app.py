@@ -91,14 +91,14 @@ if "GOOGLE_API_KEY" not in st.secrets:
 
 genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
 
-# Solució al 404: Nom net sense el prefix "models/"
+# Passem la cadena neta que requereix el nou SDK actualitzat
 MODEL_NAME = "gemini-1.5-flash"
 
 # =========================================================
 # AI PERSONALITY
 # =========================================================
 SYSTEM_PROMPT = """
-Actua com el meu millor amic de toda la vida.
+Actua com el meu millor amic de tota la vida.
 - Sigues proper, intel·ligent i amb humor. Vacil·la’m quan digui ximpleries, però sense mala llet.
 - Ajuda’m a prendre bones decisions i atura’m si veus que puc cometre un error greu, explicant per què i les conseqüències.
 - Ajuda’m a estudiar i preparar exàmens pensant en els professors i estratègies, sense fer exercicis fàcils ni absurd.
@@ -108,10 +108,10 @@ Parla sempre en català natural, de forma moderna, sense sonar robòtic ni corpo
 """
 
 # =========================================================
-# SESSION STATE (HISTORIAL AMB MEMÒRIA)
+# SESSION STATE (HISTORIAL DE CONVERSES INDIVIDUALS)
 # =========================================================
 if "chats" not in st.session_state:
-    st.session_state.chats = {}  # {chat_id: {"titol": str, "messages": []}}
+    st.session_state.chats = {}  # Format: {chat_id: {"titol": str, "messages": []}}
 
 if "current_chat_id" not in st.session_state:
     st.session_state.current_chat_id = None
@@ -127,7 +127,7 @@ with st.sidebar:
     st.caption("Un amic amb criteri, humor i suport.")
     st.markdown("---")
 
-    # Botó per iniciar una conversa nova
+    # Botó per crear un xat completament nou
     if st.button("➕ Nova conversa"):
         new_id = str(uuid.uuid4())
         st.session_state.chats[new_id] = {"titol": "Xat nou", "messages": []}
@@ -136,7 +136,7 @@ with st.sidebar:
 
     st.markdown("### Les teves converses")
     
-    # Llista de converses seleccionables i eliminables de manera individual
+    # Renderitzem la llista de xats individuals amb opció d'eliminar
     for chat_id in list(st.session_state.chats.keys()):
         col_titol, col_boto = st.columns([0.8, 0.2])
         
@@ -162,7 +162,7 @@ with st.sidebar:
     """)
 
 # =========================================================
-# HEADER PRINCIPAL
+# HEADER DE LA PÀGINA PRINCIPAL
 # =========================================================
 col1, col2 = st.columns([1, 8])
 with col1:
@@ -173,52 +173,52 @@ with col2:
     st.caption("Pregunta el que vulguis. El teu millor amic virtual no et jutjarà (gaire).")
 
 # =========================================================
-# ZONA DE XAT ACTIU
+# ÁREA DE CONVERSA ACTIVA
 # =========================================================
 if st.session_state.current_chat_id and st.session_state.current_chat_id in st.session_state.chats:
     chat_actual = st.session_state.chats[st.session_state.current_chat_id]
     
-    st.write(f"💬 *Conversa activa: {chat_actual['titol']}*")
+    st.write(f"💬 *Conversa: {chat_actual['titol']}*")
     
-    # Mostrar missatges de la memòria d'aquest xat
+    # Mostrar tots els missatges previs del xat seleccionat
     for msg in chat_actual["messages"]:
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])
 
-    # Entrada de l'usuari
+    # =========================================================
+    # ENTRADA DE TEXT DE L'USUARI
+    # =========================================================
     if prompt := st.chat_input("Digues alguna cosa..."):
         
-        # Desar i pintar el missatge de l'usuari
+        # Guardar i mostrar el missatge de l'usuari
         chat_actual["messages"].append({"role": "user", "content": prompt})
         with st.chat_message("user"):
             st.markdown(prompt)
 
-        # Actualitzar el títol del xat a la barra lateral de forma automàtica
+        # Canviar el títol basat en el primer prompt
         if len(chat_actual["messages"]) <= 1:
             chat_actual["titol"] = prompt[:20] + ("..." if len(prompt) > 20 else "")
             st.rerun()
 
-        # Generar la resposta de la IA
+        # Generar resposta de la IA de forma segura amb el nou SDK
         with st.chat_message("assistant"):
             try:
-                # Inicialitzem el model net i hi injectem la personalitat
+                # Instanciem el model passant les instruccions de personalitat natives
                 model = genai.GenerativeModel(
                     model_name=MODEL_NAME,
                     system_instruction=SYSTEM_PROMPT
                 )
                 
-                # Reconstruïm l'historial per a l'objecte chat de Gemini
+                # Convertim l'historial guardat al format esperat per la funció de xat
                 history_payload = []
-                for msg in chat_actual["messages"][:-1]:  # Tot menys l'últim prompt que l'enviem ara
+                for msg in chat_actual["messages"][:-1]:
                     history_payload.append({
                         "role": "user" if msg["role"] == "user" else "model",
                         "parts": [msg["content"]]
                     })
                 
-                # Iniciem el xat oficial amb la seva memòria interna integrada
+                # Inicialitzem la sessió de xat oficial
                 chat_session = model.start_chat(history=history_payload)
-                
-                # Enviem el text i fem l'efecte d'escriptura en temps real (streaming)
                 response = chat_session.send_message(prompt, stream=True)
 
                 full_response = ""
@@ -231,7 +231,7 @@ if st.session_state.current_chat_id and st.session_state.current_chat_id in st.s
 
                 placeholder.markdown(full_response)
 
-                # Guardem la resposta al nostre historial de la sessió
+                # Guardar la resposta al bloc de la conversa activa
                 chat_actual["messages"].append({
                     "role": "assistant",
                     "content": full_response
@@ -240,7 +240,7 @@ if st.session_state.current_chat_id and st.session_state.current_chat_id in st.s
             except Exception as e:
                 st.error(f"Error generant la resposta: {e}")
 else:
-    st.info("👋 Ei! Crea una nova conversa o selecciona'n una des de la barra lateral per començar a parlar.")
+    st.info("👋 Ei! Crea una nova conversa o selecciona'n una existent des de la barra lateral per començar.")
 
 # =========================================================
 # FOOTER
