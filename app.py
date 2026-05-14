@@ -119,7 +119,6 @@ div[data-testid="stChatMessageAssistant"] {
 # GOOGLE GEMINI CONFIG
 # =========================================================
 
-# S'ha integrat la teva API Key directament aquí per evitar errors
 API_KEY = "AIzaSyAzUFMDQfuZpZaEohaJ5M6dBD_HGXeNcFo"
 genai.configure(api_key=API_KEY)
 
@@ -150,9 +149,9 @@ You also have strong judgement:
 explain clearly why it's a bad idea.
 """
 
-# Configurar el model amb les instruccions de sistema de manera nativa
+# FIX: S'ha canviat "models/gemini-1.5-flash" per "gemini-1.5-flash" per evitar el 404
 model = genai.GenerativeModel(
-    model_name="models/gemini-1.5-flash",
+    model_name="gemini-1.5-flash",
     system_instruction=SYSTEM_PROMPT
 )
 
@@ -229,27 +228,32 @@ for msg in st.session_state.messages:
 
 if prompt := st.chat_input("Type something..."):
 
-    # Salvar el missatge de l'usuari
+    # Desar el missatge de l'usuari a l'historial de Streamlit
     st.session_state.messages.append({
         "role": "user",
         "content": prompt
     })
 
-    # Mostrar el missatge de l'usuari en pantalla
+    # Mostrar el missatge de l'usuari
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    # Construir l'historial del xat en format de text simple per a l'API
-    conversation = ""
+    # FIX: Donar format correcte a l'historial estructurat per a l'API de Gemini
+    formatted_history = []
     for msg in st.session_state.messages:
-        role = "User" if msg["role"] == "user" else "Model"
-        conversation += f"{role}: {msg['content']}\n"
+        # L'API de Gemini espera 'user' o 'model' (en lloc de assistant)
+        api_role = "user" if msg["role"] == "user" else "model"
+        formatted_history.append({
+            "role": api_role,
+            "parts": [msg["content"]]
+        })
 
-    # Generar la resposta de la IA
+    # Generar la resposta
     with st.chat_message("assistant"):
         try:
+            # Li passem tota la llista de l'historial directament en lloc d'un sol String encadenat
             response = model.generate_content(
-                conversation,
+                formatted_history,
                 stream=True
             )
 
@@ -263,7 +267,7 @@ if prompt := st.chat_input("Type something..."):
 
             placeholder.markdown(full_response)
 
-            # Salvar la resposta de l'assistent
+            # Desar la resposta de l'assistent a Streamlit
             st.session_state.messages.append({
                 "role": "assistant",
                 "content": full_response
