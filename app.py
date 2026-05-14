@@ -149,9 +149,9 @@ You also have strong judgement:
 explain clearly why it's a bad idea.
 """
 
-# Inicialitzem el model net sense "models/"
+# NOU MODEL: "gemini-pro" per a màxima compatibilitat amb servidors i llibreries velles
 model = genai.GenerativeModel(
-    model_name="gemini-1.5-flash",
+    model_name="gemini-pro",
     system_instruction=SYSTEM_PROMPT
 )
 
@@ -159,7 +159,6 @@ model = genai.GenerativeModel(
 # SESSION STATE (MEMÒRIA DE LA IA)
 # =========================================================
 
-# Aquí guardem l'historial en el format que entén perfectament l'API de Google
 if "gemini_history" not in st.session_state:
     st.session_state.gemini_history = []
 
@@ -181,7 +180,6 @@ with st.sidebar:
 
     st.markdown("---")
 
-    # Boto de neteja de xat que buida la memòria de veritat
     if st.button("🧹 Clear chat"):
         st.session_state.gemini_history = []
         st.rerun()
@@ -191,7 +189,7 @@ with st.sidebar:
     st.markdown("""
     ### About
 
-    - Gemini 1.5 Flash
+    - Gemini Pro
     - Streamlit
     - Minimal UI
     - Smart humor
@@ -218,7 +216,6 @@ with col2:
 # DISPLAY MESSAGES FROM MEMORY
 # =========================================================
 
-# Mostrem la memòria desada dinàmicament a la pantalla de l'usuari
 for msg in st.session_state.gemini_history:
     st_role = "user" if msg["role"] == "user" else "assistant"
     with st.chat_message(st_role):
@@ -230,20 +227,19 @@ for msg in st.session_state.gemini_history:
 
 if prompt := st.chat_input("Type something..."):
 
-    # 1. Mostrar el missatge de l'usuari a la pantalla a l'instant
+    # 1. Mostrar el missatge de l'usuari a la pantalla
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    # 2. Afegir el missatge actual a la memòria persistent
+    # 2. Afegir el missatge a la memòria persistent
     st.session_state.gemini_history.append({
         "role": "user",
         "parts": [prompt]
     })
 
-    # 3. Generar la resposta de la IA enviant TOTA la memòria acumulada
+    # 3. Generar la resposta de la IA
     with st.chat_message("assistant"):
         try:
-            # Enviem tota la llista de missatges guardada al Session State
             response = model.generate_content(
                 st.session_state.gemini_history,
                 stream=True
@@ -259,7 +255,7 @@ if prompt := st.chat_input("Type something..."):
 
             placeholder.markdown(full_response)
 
-            # 4. Afegir la resposta de la IA a la memòria perquè la recordi al següent torn
+            # 4. Desar la resposta de la IA a la memòria
             st.session_state.gemini_history.append({
                 "role": "model",
                 "parts": [full_response]
