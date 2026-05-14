@@ -149,18 +149,19 @@ You also have strong judgement:
 explain clearly why it's a bad idea.
 """
 
-# FIX: S'ha canviat "models/gemini-1.5-flash" per "gemini-1.5-flash" per evitar el 404
+# Inicialitzem el model net sense "models/"
 model = genai.GenerativeModel(
     model_name="gemini-1.5-flash",
     system_instruction=SYSTEM_PROMPT
 )
 
 # =========================================================
-# SESSION STATE
+# SESSION STATE (MEMÒRIA DE LA IA)
 # =========================================================
 
-if "messages" not in st.session_state:
-    st.session_state.messages = []
+# Aquí guardem l'historial en el format que entén perfectament l'API de Google
+if "gemini_history" not in st.session_state:
+    st.session_state.gemini_history = []
 
 # =========================================================
 # SIDEBAR
@@ -168,7 +169,6 @@ if "messages" not in st.session_state:
 
 with st.sidebar:
 
-    # Logo
     if os.path.exists("logo.png"):
         st.image("logo.png", width=90)
 
@@ -181,9 +181,9 @@ with st.sidebar:
 
     st.markdown("---")
 
-    # Clear chat
+    # Boto de neteja de xat que buida la memòria de veritat
     if st.button("🧹 Clear chat"):
-        st.session_state.messages = []
+        st.session_state.gemini_history = []
         st.rerun()
 
     st.markdown("---")
@@ -215,45 +215,37 @@ with col2:
     )
 
 # =========================================================
-# DISPLAY MESSAGES
+# DISPLAY MESSAGES FROM MEMORY
 # =========================================================
 
-for msg in st.session_state.messages:
-    with st.chat_message(msg["role"]):
-        st.markdown(msg["content"])
+# Mostrem la memòria desada dinàmicament a la pantalla de l'usuari
+for msg in st.session_state.gemini_history:
+    st_role = "user" if msg["role"] == "user" else "assistant"
+    with st.chat_message(st_role):
+        st.markdown(msg["parts"][0])
 
 # =========================================================
-# USER INPUT
+# USER INPUT & RESPONSE GENERATION
 # =========================================================
 
 if prompt := st.chat_input("Type something..."):
 
-    # Desar el missatge de l'usuari a l'historial de Streamlit
-    st.session_state.messages.append({
-        "role": "user",
-        "content": prompt
-    })
-
-    # Mostrar el missatge de l'usuari
+    # 1. Mostrar el missatge de l'usuari a la pantalla a l'instant
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    # FIX: Donar format correcte a l'historial estructurat per a l'API de Gemini
-    formatted_history = []
-    for msg in st.session_state.messages:
-        # L'API de Gemini espera 'user' o 'model' (en lloc de assistant)
-        api_role = "user" if msg["role"] == "user" else "model"
-        formatted_history.append({
-            "role": api_role,
-            "parts": [msg["content"]]
-        })
+    # 2. Afegir el missatge actual a la memòria persistent
+    st.session_state.gemini_history.append({
+        "role": "user",
+        "parts": [prompt]
+    })
 
-    # Generar la resposta
+    # 3. Generar la resposta de la IA enviant TOTA la memòria acumulada
     with st.chat_message("assistant"):
         try:
-            # Li passem tota la llista de l'historial directament en lloc d'un sol String encadenat
+            # Enviem tota la llista de missatges guardada al Session State
             response = model.generate_content(
-                formatted_history,
+                st.session_state.gemini_history,
                 stream=True
             )
 
@@ -267,10 +259,10 @@ if prompt := st.chat_input("Type something..."):
 
             placeholder.markdown(full_response)
 
-            # Desar la resposta de l'assistent a Streamlit
-            st.session_state.messages.append({
-                "role": "assistant",
-                "content": full_response
+            # 4. Afegir la resposta de la IA a la memòria perquè la recordi al següent torn
+            st.session_state.gemini_history.append({
+                "role": "model",
+                "parts": [full_response]
             })
 
         except Exception as e:
