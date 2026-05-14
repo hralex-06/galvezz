@@ -179,7 +179,7 @@ if st.session_state.current_chat_id and st.session_state.current_chat_id in st.s
                 else:
                     st.error(f"Error del servidor: {e}")
 else:
-    st.info("👋 Ei Àlex! Crea una nova conversa o selecciona'n una des de la barra lateral per començar.")
+    st.info("👋 Ei! Crea una nova conversa o selecciona'n una des de la barra lateral per començar.")
 
 st.markdown("---")
 st.caption("GalvezAI © 2026 • Creat amb Streamlit + Gemini")
