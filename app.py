@@ -243,7 +243,7 @@ if st.session_state.current_chat_id and st.session_state.current_chat_id in st.s
                 st.error(f"Error generant la resposta: {e}")
 else:
     # Missatge inicial si no hi ha cap xat seleccionat
-    st.info("👋 Ei Alex! Crea una nova conversa o selecciona'n una existent des de la barra lateral per començar.")
+    st.info("👋 Ei! Crea una nova conversa o selecciona'n una existent des de la barra lateral per començar.")
 
 # =========================================================
 # FOOTER
