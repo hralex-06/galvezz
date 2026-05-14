@@ -1,116 +1,298 @@
 import streamlit as st
 import google.generativeai as genai
-import uuid
-import time
+import os
 
-# --- CONFIGURACIÓ DE PÀGINA ---
-st.set_page_config(page_title="GalvezzAI", page_icon="🤖", layout="wide")
+# =========================================================
+# CONFIGURACIÓ PÀGINA
+# =========================================================
 
-# --- CSS DEFINITIU (TEXT BLANC I COLORS VIUS) ---
+st.set_page_config(
+    page_title="GalvezAI",
+    page_icon="logo.png",
+    layout="wide"
+)
+
+# =========================================================
+# CSS ESTIL GEMINI MINIMALISTA
+# =========================================================
+
 st.markdown("""
-    <style>
-    .stApp { background: linear-gradient(145deg, #0f0c29, #1a1a2e); color: white !important; }
-    
-    /* Barra lateral */
-    section[data-testid="stSidebar"] { background-color: #050505 !important; border-right: 1px solid #333; }
-    
-    /* Missatges estil targeta */
-    .stChatMessage { border-radius: 15px; padding: 1.5rem; margin-bottom: 1rem; border: 1px solid rgba(255,255,255,0.1); }
-    div[data-testid="stChatMessageUser"] { background-color: rgba(0, 255, 204, 0.1) !important; border-right: 4px solid #00ffcc; }
-    div[data-testid="stChatMessageAssistant"] { background-color: rgba(88, 166, 255, 0.1) !important; border-left: 4px solid #58a6ff; }
-    
-    /* Lletres Blanques i llegibles */
-    p, span, div, label, .stMarkdown { color: #ffffff !important; font-size: 1.1rem; }
-    h1 { color: #00ffcc !important; font-weight: 800; text-shadow: 0px 0px 10px rgba(0,255,204,0.3); }
-    
-    /* Botons sidebar */
-    .stButton>button { width: 100%; border-radius: 8px; background-color: #21262d; color: white; border: 1px solid #444; }
-    .stButton>button:hover { border-color: #00ffcc; color: #00ffcc; }
-    </style>
-    """, unsafe_allow_html=True)
+<style>
 
-# --- 1. CONFIGURACIÓ GOOGLE AI ---
+/* ---------- FONTS ---------- */
+
+html, body, [class*="css"] {
+    font-family: "Segoe UI", sans-serif;
+}
+
+/* ---------- FONS GENERAL ---------- */
+
+.stApp {
+    background-color: #0b0f19;
+    color: white;
+}
+
+/* ---------- SIDEBAR ---------- */
+
+section[data-testid="stSidebar"] {
+    background-color: #111827;
+    border-right: 1px solid #1f2937;
+}
+
+/* ---------- TITOLS ---------- */
+
+h1, h2, h3 {
+    color: white !important;
+    font-weight: 700;
+}
+
+/* ---------- CHAT ---------- */
+
+.stChatMessage {
+    border-radius: 18px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    border: none;
+}
+
+/* Usuari */
+
+div[data-testid="stChatMessageUser"] {
+    background-color: #1f2937;
+}
+
+/* IA */
+
+div[data-testid="stChatMessageAssistant"] {
+    background-color: #111827;
+}
+
+/* ---------- INPUT ---------- */
+
+.stChatInput input {
+    background-color: #1f2937 !important;
+    color: white !important;
+    border-radius: 16px !important;
+    border: 1px solid #374151 !important;
+}
+
+/* ---------- BOTONS ---------- */
+
+.stButton button {
+    width: 100%;
+    border-radius: 12px;
+    background-color: #1f2937;
+    color: white;
+    border: 1px solid #374151;
+    transition: 0.2s;
+}
+
+.stButton button:hover {
+    border: 1px solid #60a5fa;
+    color: #60a5fa;
+}
+
+/* ---------- TEXT ---------- */
+
+p, span, div {
+    color: white !important;
+}
+
+/* ---------- SCROLL ---------- */
+
+::-webkit-scrollbar {
+    width: 10px;
+}
+
+::-webkit-scrollbar-track {
+    background: #111827;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #374151;
+    border-radius: 10px;
+}
+
+</style>
+""", unsafe_allow_html=True)
+
+# =========================================================
+# CONFIGURACIÓ GEMINI
+# =========================================================
+
 if "GOOGLE_API_KEY" not in st.secrets:
-    st.error("Configura la API KEY als Secrets!")
+    st.error("No has configurat la GOOGLE_API_KEY als secrets.")
     st.stop()
 
 genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
 
-# Intentem carregar el model 1.5-flash, si no, el Pro
-try:
-    model = genai.GenerativeModel('gemini-1.5-flash')
-except:
-    model = genai.GenerativeModel('gemini-pro')
+model = genai.GenerativeModel("gemini-1.5-flash")
 
-# --- 2. GESTIÓ D'HISTORIAL (SESSIONS) ---
-if "chats" not in st.session_state:
-    st.session_state.chats = {} # {id: {"titol": str, "messages": []}}
+# =========================================================
+# SESSION STATE
+# =========================================================
 
-if "current_chat_id" not in st.session_state:
-    st.session_state.current_chat_id = None
+if "messages" not in st.session_state:
+    st.session_state.messages = []
 
-# --- 3. BARRA LATERAL AMB SUBMENÚ D'ELIMINACIÓ ---
+# =========================================================
+# PERSONALITAT IA
+# =========================================================
+
+SYSTEM_PROMPT = """
+Ets GalvezAI.
+
+Parles sempre en català.
+
+Tens una personalitat divertida, intel·ligent i una mica sarcàstica.
+Vacil·les l'usuari quan diu tonteries però sense ser cruel.
+Parles com un amic real.
+
+No sonis com un bot corporatiu.
+No facis respostes excessivament llargues si no cal.
+Pots fer humor subtil i modern.
+
+Quan l’usuari estigui preocupat o trist:
+- sigues més humà
+- ajuda de veritat
+- no facis bromes pesades
+
+També tens criteri:
+- si l’usuari vol fer una mala decisió, explica-li clarament.
+"""
+
+# =========================================================
+# SIDEBAR
+# =========================================================
+
 with st.sidebar:
-    st.title("🤖 GalvezzAI")
-    
-    if st.button("➕ Nova Conversa"):
-        new_id = str(uuid.uuid4())
-        st.session_state.chats[new_id] = {"titol": "Xat nou", "messages": []}
-        st.session_state.current_chat_id = new_id
-        st.rerun()
-    
+
+    st.image("logo.png", width=90)
+
+    st.markdown("## GalvezAI")
+
+    st.caption("Una IA amb humor i criteri. Raresa estadística a internet.")
+
     st.markdown("---")
-    st.subheader("Les teves xerrades")
-    
-    for chat_id in list(st.session_state.chats.keys()):
-        col_t, col_b = st.columns([0.8, 0.2])
-        with col_t:
-            if st.button(st.session_state.chats[chat_id]["titol"][:18], key=f"sel_{chat_id}"):
-                st.session_state.current_chat_id = chat_id
-                st.rerun()
-        with col_b:
-            if st.button("🗑️", key=f"del_{chat_id}"):
-                del st.session_state.chats[chat_id]
-                if st.session_state.current_chat_id == chat_id:
-                    st.session_state.current_chat_id = None
-                st.rerun()
 
-# --- 4. LÒGICA DE XAT I PERSONALITAT ---
-PERSONALITAT = (
-    "Actua com el meu millor amic de tota la vida. Sigues proper, intel·ligent i amb humor. "
-    "Vacil·la’m quan digui ximpleries, però sense mala llet. Ajuda’m a prendre bones decisions, "
-    "atura’m si veus que puc cometre un error greu. Ajuda’m a estudiar estratègicament. "
-    "Respon sempre en català."
+    if st.button("🧹 Netejar conversa"):
+        st.session_state.messages = []
+        st.rerun()
+
+    st.markdown("---")
+
+    st.markdown("""
+    ### Sobre GalvezAI
+
+    - Gemini 1.5 Flash
+    - Streamlit
+    - Interfície minimalista
+    - Humor integrat
+    - 0% personalitat corporativa
+    """)
+
+# =========================================================
+# HEADER
+# =========================================================
+
+col1, col2 = st.columns([1, 8])
+
+with col1:
+    st.image("logo.png", width=90)
+
+with col2:
+    st.title("GalvezAI")
+    st.caption("Pregunta el que vulguis. La IA jutjarà silenciosament les teves decisions.")
+
+# =========================================================
+# MOSTRAR MISSATGES
+# =========================================================
+
+for msg in st.session_state.messages:
+
+    with st.chat_message(msg["role"]):
+
+        st.markdown(msg["content"])
+
+# =========================================================
+# INPUT USUARI
+# =========================================================
+
+if prompt := st.chat_input("Escriu alguna cosa..."):
+
+    # Guardar usuari
+    st.session_state.messages.append({
+        "role": "user",
+        "content": prompt
+    })
+
+    # Mostrar usuari
+    with st.chat_message("user"):
+        st.markdown(prompt)
+
+    # Construcció conversa
+    conversation = SYSTEM_PROMPT + "\n\n"
+
+    for msg in st.session_state.messages:
+
+        role = "Usuari" if msg["role"] == "user" else "GalvezAI"
+
+        conversation += f"{role}: {msg['content']}\n"
+
+    # Resposta IA
+    with st.chat_message("assistant"):
+
+        try:
+
+            response = model.generate_content(
+                conversation,
+                stream=True
+            )
+
+            resposta_completa = ""
+
+            placeholder = st.empty()
+
+            for chunk in response:
+
+                if hasattr(chunk, "text"):
+
+                    resposta_completa += chunk.text
+
+                    placeholder.markdown(
+                        resposta_completa + "▌"
+                    )
+
+            placeholder.markdown(resposta_completa)
+
+            # Guardar resposta
+            st.session_state.messages.append({
+                "role": "assistant",
+                "content": resposta_completa
+            })
+
+        except Exception as e:
+
+            st.error(f"""
+            Error generant resposta.
+
+            Possibles motius:
+            - API Key incorrecta
+            - Límit de Gemini superat
+            - Google fent coses de Google
+            - Internet decidint morir ara mateix
+
+            Error:
+            {e}
+            """)
+
+# =========================================================
+# FOOTER
+# =========================================================
+
+st.markdown("---")
+
+st.caption(
+    "GalvezAI © 2026 • Fet amb Streamlit + Gemini • "
+    "Sí, una IA amb sarcasme. La humanitat ho ha permès."
 )
-
-if st.session_state.current_chat_id:
-    chat_data = st.session_state.chats[st.session_state.current_chat_id]
-    st.title(chat_data["titol"])
-    
-    # Mostrar missatges guardats
-    for msg in chat_data["messages"]:
-        with st.chat_message(msg["role"]):
-            st.markdown(msg["content"])
-
-    # Entrada de text
-    if prompt := st.chat_input("Digues quelcom, Alex..."):
-        # Guardem usuari
-        chat_data["messages"].append({"role": "user", "content": prompt})
-        if len(chat_data["messages"]) <= 1:
-            chat_data["titol"] = prompt[:20]
-        st.chat_message("user").write(prompt)
-
-        with st.chat_message("assistant"):
-            try:
-                # Per evitar el 429, enviem la personalitat + l'últim missatge
-                # Si vols que recordi més, podem posar els últims 2, però risc de saturació.
-                time.sleep(0.5) # Pausa de seguretat
-                response = model.generate_content(f"{PERSONALITAT}\n\nAlex diu: {prompt}")
-                
-                resposta = response.text
-                st.markdown(resposta)
-                chat_data["messages"].append({"role": "assistant", "content": resposta})
-            except Exception as e:
-                st.error("Google s'ha atabalat. Espera 10 segons.")
-else:
-    st.info("👋 ey! Tira cap a la barra lateral i crea un xat nou per començar a xerrar.")
