@@ -3,7 +3,7 @@ import google.generativeai as genai
 import os
 
 # =========================================================
-# CONFIGURACIÓ PÀGINA
+# PAGE CONFIG
 # =========================================================
 
 st.set_page_config(
@@ -13,37 +13,41 @@ st.set_page_config(
 )
 
 # =========================================================
-# CSS ESTIL GEMINI MINIMALISTA
+# LIGHT MINIMAL GEMINI STYLE
 # =========================================================
 
 st.markdown("""
 <style>
 
-/* ---------- FONTS ---------- */
+/* ---------- GLOBAL ---------- */
 
 html, body, [class*="css"] {
     font-family: "Segoe UI", sans-serif;
 }
 
-/* ---------- FONS GENERAL ---------- */
-
 .stApp {
-    background-color: #0b0f19;
-    color: white;
+    background-color: #ffffff;
+    color: #111827;
 }
 
 /* ---------- SIDEBAR ---------- */
 
 section[data-testid="stSidebar"] {
-    background-color: #111827;
-    border-right: 1px solid #1f2937;
+    background-color: #f8fafc;
+    border-right: 1px solid #e5e7eb;
 }
 
-/* ---------- TITOLS ---------- */
+/* ---------- TITLES ---------- */
 
 h1, h2, h3 {
-    color: white !important;
+    color: #111827 !important;
     font-weight: 700;
+}
+
+/* ---------- TEXT ---------- */
+
+p, span, div, label {
+    color: #111827 !important;
 }
 
 /* ---------- CHAT ---------- */
@@ -55,61 +59,56 @@ h1, h2, h3 {
     border: none;
 }
 
-/* Usuari */
+/* USER MESSAGE */
 
 div[data-testid="stChatMessageUser"] {
-    background-color: #1f2937;
+    background-color: #f3f4f6;
 }
 
-/* IA */
+/* AI MESSAGE */
 
 div[data-testid="stChatMessageAssistant"] {
-    background-color: #111827;
+    background-color: #ffffff;
+    border: 1px solid #e5e7eb;
 }
 
 /* ---------- INPUT ---------- */
 
 .stChatInput input {
-    background-color: #1f2937 !important;
-    color: white !important;
-    border-radius: 16px !important;
-    border: 1px solid #374151 !important;
+    background-color: #ffffff !important;
+    color: #111827 !important;
+    border-radius: 18px !important;
+    border: 1px solid #d1d5db !important;
 }
 
-/* ---------- BOTONS ---------- */
+/* ---------- BUTTONS ---------- */
 
 .stButton button {
     width: 100%;
-    border-radius: 12px;
-    background-color: #1f2937;
-    color: white;
-    border: 1px solid #374151;
+    border-radius: 14px;
+    background-color: white;
+    color: #111827;
+    border: 1px solid #d1d5db;
     transition: 0.2s;
 }
 
 .stButton button:hover {
-    border: 1px solid #60a5fa;
-    color: #60a5fa;
+    border: 1px solid #2563eb;
+    color: #2563eb;
 }
 
-/* ---------- TEXT ---------- */
-
-p, span, div {
-    color: white !important;
-}
-
-/* ---------- SCROLL ---------- */
+/* ---------- SCROLLBAR ---------- */
 
 ::-webkit-scrollbar {
     width: 10px;
 }
 
 ::-webkit-scrollbar-track {
-    background: #111827;
+    background: #f3f4f6;
 }
 
 ::-webkit-scrollbar-thumb {
-    background: #374151;
+    background: #d1d5db;
     border-radius: 10px;
 }
 
@@ -117,16 +116,45 @@ p, span, div {
 """, unsafe_allow_html=True)
 
 # =========================================================
-# CONFIGURACIÓ GEMINI
+# GOOGLE GEMINI CONFIG
 # =========================================================
 
-if "GOOGLE_API_KEY" not in st.secrets:
-    st.error("No has configurat la GOOGLE_API_KEY als secrets.")
-    st.stop()
+# S'ha integrat la teva API Key directament aquí per evitar errors
+API_KEY = "AIzaSyAzUFMDQfuZpZaEohaJ5M6dBD_HGXeNcFo"
+genai.configure(api_key=API_KEY)
 
-genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
+# =========================================================
+# AI PERSONALITY
+# =========================================================
 
-model = genai.GenerativeModel("gemini-1.5-flash")
+SYSTEM_PROMPT = """
+You are GalvezAI.
+
+You always speak in the same language as the user.
+
+You are funny, intelligent and slightly sarcastic.
+You tease the user sometimes but never in a cruel way.
+You speak naturally like a real friend.
+
+Do not sound corporate.
+Do not sound robotic.
+Keep responses modern and natural.
+
+If the user is sad or worried:
+- become more supportive
+- avoid harsh jokes
+- help seriously
+
+You also have strong judgement:
+- if the user wants to do something stupid,
+explain clearly why it's a bad idea.
+"""
+
+# Configurar el model amb les instruccions de sistema de manera nativa
+model = genai.GenerativeModel(
+    model_name="models/gemini-1.5-flash",
+    system_instruction=SYSTEM_PROMPT
+)
 
 # =========================================================
 # SESSION STATE
@@ -136,59 +164,39 @@ if "messages" not in st.session_state:
     st.session_state.messages = []
 
 # =========================================================
-# PERSONALITAT IA
-# =========================================================
-
-SYSTEM_PROMPT = """
-Ets GalvezAI.
-
-Parles sempre en català.
-
-Tens una personalitat divertida, intel·ligent i una mica sarcàstica.
-Vacil·les l'usuari quan diu tonteries però sense ser cruel.
-Parles com un amic real.
-
-No sonis com un bot corporatiu.
-No facis respostes excessivament llargues si no cal.
-Pots fer humor subtil i modern.
-
-Quan l’usuari estigui preocupat o trist:
-- sigues més humà
-- ajuda de veritat
-- no facis bromes pesades
-
-També tens criteri:
-- si l’usuari vol fer una mala decisió, explica-li clarament.
-"""
-
-# =========================================================
 # SIDEBAR
 # =========================================================
 
 with st.sidebar:
 
-    st.image("logo.png", width=90)
+    # Logo
+    if os.path.exists("logo.png"):
+        st.image("logo.png", width=90)
 
     st.markdown("## GalvezAI")
 
-    st.caption("Una IA amb humor i criteri. Raresa estadística a internet.")
+    st.caption(
+        "An AI with humor and common sense. "
+        "A statistical anomaly on the internet."
+    )
 
     st.markdown("---")
 
-    if st.button("🧹 Netejar conversa"):
+    # Clear chat
+    if st.button("🧹 Clear chat"):
         st.session_state.messages = []
         st.rerun()
 
     st.markdown("---")
 
     st.markdown("""
-    ### Sobre GalvezAI
+    ### About
 
     - Gemini 1.5 Flash
     - Streamlit
-    - Interfície minimalista
-    - Humor integrat
-    - 0% personalitat corporativa
+    - Minimal UI
+    - Smart humor
+    - No corporate personality
     """)
 
 # =========================================================
@@ -198,93 +206,82 @@ with st.sidebar:
 col1, col2 = st.columns([1, 8])
 
 with col1:
-    st.image("logo.png", width=90)
+    if os.path.exists("logo.png"):
+        st.image("logo.png", width=90)
 
 with col2:
     st.title("GalvezAI")
-    st.caption("Pregunta el que vulguis. La IA jutjarà silenciosament les teves decisions.")
+    st.caption(
+        "Ask anything. The AI will silently judge your decisions."
+    )
 
 # =========================================================
-# MOSTRAR MISSATGES
+# DISPLAY MESSAGES
 # =========================================================
 
 for msg in st.session_state.messages:
-
     with st.chat_message(msg["role"]):
-
         st.markdown(msg["content"])
 
 # =========================================================
-# INPUT USUARI
+# USER INPUT
 # =========================================================
 
-if prompt := st.chat_input("Escriu alguna cosa..."):
+if prompt := st.chat_input("Type something..."):
 
-    # Guardar usuari
+    # Salvar el missatge de l'usuari
     st.session_state.messages.append({
         "role": "user",
         "content": prompt
     })
 
-    # Mostrar usuari
+    # Mostrar el missatge de l'usuari en pantalla
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    # Construcció conversa
-    conversation = SYSTEM_PROMPT + "\n\n"
-
+    # Construir l'historial del xat en format de text simple per a l'API
+    conversation = ""
     for msg in st.session_state.messages:
-
-        role = "Usuari" if msg["role"] == "user" else "GalvezAI"
-
+        role = "User" if msg["role"] == "user" else "Model"
         conversation += f"{role}: {msg['content']}\n"
 
-    # Resposta IA
+    # Generar la resposta de la IA
     with st.chat_message("assistant"):
-
         try:
-
             response = model.generate_content(
                 conversation,
                 stream=True
             )
 
-            resposta_completa = ""
-
+            full_response = ""
             placeholder = st.empty()
 
             for chunk in response:
-
                 if hasattr(chunk, "text"):
+                    full_response += chunk.text
+                    placeholder.markdown(full_response + "▌")
 
-                    resposta_completa += chunk.text
+            placeholder.markdown(full_response)
 
-                    placeholder.markdown(
-                        resposta_completa + "▌"
-                    )
-
-            placeholder.markdown(resposta_completa)
-
-            # Guardar resposta
+            # Salvar la resposta de l'assistent
             st.session_state.messages.append({
                 "role": "assistant",
-                "content": resposta_completa
+                "content": full_response
             })
 
         except Exception as e:
-
             st.error(f"""
-            Error generant resposta.
+Error generating response.
 
-            Possibles motius:
-            - API Key incorrecta
-            - Límit de Gemini superat
-            - Google fent coses de Google
-            - Internet decidint morir ara mateix
+Possible reasons:
+- Invalid API key
+- Gemini rate limit reached
+- Google doing Google things
+- Your internet collapsed dramatically
 
-            Error:
-            {e}
-            """)
+Error:
+{e}
+""")
 
 # =========================================================
 # FOOTER
@@ -293,6 +290,6 @@ if prompt := st.chat_input("Escriu alguna cosa..."):
 st.markdown("---")
 
 st.caption(
-    "GalvezAI © 2026 • Fet amb Streamlit + Gemini • "
-    "Sí, una IA amb sarcasme. La humanitat ho ha permès."
+    "GalvezAI © 2026 • Built with Streamlit + Gemini • "
+    "Humanity allowed this AI to have sarcasm."
 )
