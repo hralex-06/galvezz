@@ -240,7 +240,7 @@ if st.session_state.current_chat_id and st.session_state.current_chat_id in st.s
             except Exception as e:
                 st.error(f"Error generant la resposta: {e}")
 else:
-    st.info("👋 Ei Alex! Crea una nova conversa o selecciona'n una des de la barra lateral per començar a parlar.")
+    st.info("👋 Ei! Crea una nova conversa o selecciona'n una des de la barra lateral per començar a parlar.")
 
 # =========================================================
 # FOOTER
