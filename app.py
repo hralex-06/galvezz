@@ -17,65 +17,17 @@ st.set_page_config(
 # =========================================================
 st.markdown("""
 <style>
-/* ---------- GLOBAL ---------- */
-html, body, [class*="css"] {
-    font-family: "Segoe UI", sans-serif;
-}
-.stApp {
-    background-color: #ffffff;
-    color: #111827;
-}
-/* ---------- SIDEBAR ---------- */
-section[data-testid="stSidebar"] {
-    background-color: #f8fafc;
-    border-right: 1px solid #e5e7eb;
-}
-/* ---------- TITLES ---------- */
-h1, h2, h3 {
-    color: #111827 !important;
-    font-weight: 700;
-}
-/* ---------- TEXT ---------- */
-p, span, div, label {
-    color: #111827 !important;
-}
-/* ---------- CHAT ---------- */
-.stChatMessage {
-    border-radius: 18px;
-    padding: 1rem;
-    margin-bottom: 1rem;
-    border: none;
-}
-/* USER MESSAGE */
-div[data-testid="stChatMessageUser"] {
-    background-color: #f3f4f6;
-}
-/* AI MESSAGE */
-div[data-testid="stChatMessageAssistant"] {
-    background-color: #ffffff;
-    border: 1px solid #e5e7eb;
-}
-/* ---------- INPUT ---------- */
-.stChatInput input {
-    background-color: #ffffff !important;
-    color: #111827 !important;
-    border-radius: 18px !important;
-    border: 1px solid #d1d5db !important;
-}
-/* ---------- BUTTONS ---------- */
-.stButton button {
-    width: 100%;
-    border-radius: 14px;
-    background-color: white;
-    color: #111827;
-    border: 1px solid #d1d5db;
-    transition: 0.2s;
-}
-.stButton button:hover {
-    border: 1px solid #2563eb;
-    color: #2563eb;
-}
-/* ---------- SCROLLBAR ---------- */
+html, body, [class*="css"] { font-family: "Segoe UI", sans-serif; }
+.stApp { background-color: #ffffff; color: #111827; }
+section[data-testid="stSidebar"] { background-color: #f8fafc; border-right: 1px solid #e5e7eb; }
+h1, h2, h3 { color: #111827 !important; font-weight: 700; }
+p, span, div, label { color: #111827 !important; }
+.stChatMessage { border-radius: 18px; padding: 1rem; margin-bottom: 1rem; border: none; }
+div[data-testid="stChatMessageUser"] { background-color: #f3f4f6; }
+div[data-testid="stChatMessageAssistant"] { background-color: #ffffff; border: 1px solid #e5e7eb; }
+.stChatInput input { background-color: #ffffff !important; color: #111827 !important; border-radius: 18px !important; border: 1px solid #d1d5db !important; }
+.stButton button { width: 100%; border-radius: 14px; background-color: white; color: #111827; border: 1px solid #d1d5db; transition: 0.2s; }
+.stButton button:hover { border: 1px solid #2563eb; color: #2563eb; }
 ::-webkit-scrollbar { width: 10px; }
 ::-webkit-scrollbar-track { background: #f3f4f6; }
 ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 10px; }
@@ -91,8 +43,8 @@ if "GOOGLE_API_KEY" not in st.secrets:
 
 genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
 
-# Passem la cadena neta que requereix el nou SDK actualitzat
-MODEL_NAME = "gemini-1.5-flash"
+# Cambiem a la versió Pro estable per saltar-nos el bloqueig del Flash
+MODEL_NAME = "gemini-1.5-pro"
 
 # =========================================================
 # AI PERSONALITY
@@ -108,10 +60,10 @@ Parla sempre en català natural, de forma moderna, sense sonar robòtic ni corpo
 """
 
 # =========================================================
-# SESSION STATE (HISTORIAL DE CONVERSES INDIVIDUALS)
+# SESSION STATE
 # =========================================================
 if "chats" not in st.session_state:
-    st.session_state.chats = {}  # Format: {chat_id: {"titol": str, "messages": []}}
+    st.session_state.chats = {}
 
 if "current_chat_id" not in st.session_state:
     st.session_state.current_chat_id = None
@@ -127,7 +79,6 @@ with st.sidebar:
     st.caption("Un amic amb criteri, humor i suport.")
     st.markdown("---")
 
-    # Botó per crear un xat completament nou
     if st.button("➕ Nova conversa"):
         new_id = str(uuid.uuid4())
         st.session_state.chats[new_id] = {"titol": "Xat nou", "messages": []}
@@ -136,7 +87,6 @@ with st.sidebar:
 
     st.markdown("### Les teves converses")
     
-    # Renderitzem la llista de xats individuals amb opció d'eliminar
     for chat_id in list(st.session_state.chats.keys()):
         col_titol, col_boto = st.columns([0.8, 0.2])
         
@@ -153,16 +103,10 @@ with st.sidebar:
                 st.rerun()
 
     st.markdown("---")
-    st.markdown("""
-    ### About
-    - Gemini 1.5 Flash
-    - Streamlit
-    - Minimal UI
-    - Real Friend Mode
-    """)
+    st.caption("Model actiu: " + MODEL_NAME)
 
 # =========================================================
-# HEADER DE LA PÀGINA PRINCIPAL
+# HEADER PRINCIPAL
 # =========================================================
 col1, col2 = st.columns([1, 8])
 with col1:
@@ -173,43 +117,36 @@ with col2:
     st.caption("Pregunta el que vulguis. El teu millor amic virtual no et jutjarà (gaire).")
 
 # =========================================================
-# ÁREA DE CONVERSA ACTIVA
+# ZONA DE XAT
 # =========================================================
 if st.session_state.current_chat_id and st.session_state.current_chat_id in st.session_state.chats:
     chat_actual = st.session_state.chats[st.session_state.current_chat_id]
     
-    st.write(f"💬 *Conversa: {chat_actual['titol']}*")
+    st.write(f"💬 *Conversa activa: {chat_actual['titol']}*")
     
-    # Mostrar tots els missatges previs del xat seleccionat
     for msg in chat_actual["messages"]:
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])
 
-    # =========================================================
-    # ENTRADA DE TEXT DE L'USUARI
-    # =========================================================
     if prompt := st.chat_input("Digues alguna cosa..."):
         
-        # Guardar i mostrar el missatge de l'usuari
         chat_actual["messages"].append({"role": "user", "content": prompt})
         with st.chat_message("user"):
             st.markdown(prompt)
 
-        # Canviar el títol basat en el primer prompt
         if len(chat_actual["messages"]) <= 1:
             chat_actual["titol"] = prompt[:20] + ("..." if len(prompt) > 20 else "")
             st.rerun()
 
-        # Generar resposta de la IA de forma segura amb el nou SDK
         with st.chat_message("assistant"):
             try:
-                # Instanciem el model passant les instruccions de personalitat natives
+                # Inicialitzem el model net amb instruccions de sistema
                 model = genai.GenerativeModel(
                     model_name=MODEL_NAME,
                     system_instruction=SYSTEM_PROMPT
                 )
                 
-                # Convertim l'historial guardat al format esperat per la funció de xat
+                # Passem l'historial netejant estructures incompatibles
                 history_payload = []
                 for msg in chat_actual["messages"][:-1]:
                     history_payload.append({
@@ -217,7 +154,6 @@ if st.session_state.current_chat_id and st.session_state.current_chat_id in st.s
                         "parts": [msg["content"]]
                     })
                 
-                # Inicialitzem la sessió de xat oficial
                 chat_session = model.start_chat(history=history_payload)
                 response = chat_session.send_message(prompt, stream=True)
 
@@ -231,21 +167,19 @@ if st.session_state.current_chat_id and st.session_state.current_chat_id in st.s
 
                 placeholder.markdown(full_response)
 
-                # Guardar la resposta al bloc de la conversa activa
                 chat_actual["messages"].append({
                     "role": "assistant",
                     "content": full_response
                 })
 
             except Exception as e:
-                st.error(f"Error generant la resposta: {e}")
+                # Si hi ha un error de quota real, el capturem i t'avisem netament
+                if "429" in str(e) or "quota" in str(e).lower():
+                    st.error("⚠️ Google ha congelat temporalment la clau API gratuïta per excés de peticions. Espera 1 minut complet sense enviar res i torna-ho a provar.")
+                else:
+                    st.error(f"Error del servidor: {e}")
 else:
-    st.info("👋 Ei! Crea una nova conversa o selecciona'n una existent des de la barra lateral per començar.")
+    st.info("👋 Ei Àlex! Crea una nova conversa o selecciona'n una des de la barra lateral per començar.")
 
-# =========================================================
-# FOOTER
-# =========================================================
 st.markdown("---")
-st.caption(
-    "GalvezAI © 2026 • Creat amb Streamlit + Gemini • Un company de veritat."
-)
+st.caption("GalvezAI © 2026 • Creat amb Streamlit + Gemini")
